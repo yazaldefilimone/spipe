@@ -4,7 +4,7 @@ use crate::utils::range::Range;
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum TokenType {
-  // keywords
+  //  (Keywords)
   Select,    // SELECT
   From,      // FROM
   Where,     // WHERE
@@ -23,28 +23,42 @@ pub enum TokenType {
   With,      // WITH
   Case,      // CASE
   End,       // END
-  Aggregate, // AGGREGATE
   And,       // AND
   Or,        // OR
-  Pipe,      // |>
+  Not,       // NOT
+  Insert,    // INSERT
+  Into,      // INTO
+  Values,    // VALUES
+  Update,    // UPDATE
+  Set,       // SET
+  Delete,    // DELETE
+  Create,    // CREATE
+  Table,     // TABLE
+  Alter,     // ALTER
+  Drop,      // DROP
+  Distinct,  // DISTINCT
+  Null,      // NULL
+  Is,        // IS
+  Like,      // LIKE
+  In,        // IN
+  Exists,    // EXISTS
+  Between,   // BETWEEN
+  Aggregate, // AGGREGATE
 
-  Count,
-  Sum,
-  Avg,
-  Min,
-  Max,
-  GroupBy, // GROUP BY
-  OrderBy, // ORDER BY
+  // (Aggregation Functions)
+  Count, // COUNT
+  Sum,   // SUM
+  Avg,   // AVG
+  Min,   // MIN
+  Max,   // MAX
 
-  Distinct,   // DISTINCT
-  Identifier, // name...
+  //  (Literals)
+  Identifier, // name of a column, table, or alias
+  String,     // "string"
+  Boolean,    // true, false
+  Number,     // 123, 123.456
 
-  // literals
-  String,  // "string"
-  Boolean, // true, false
-  Number,  // 123, 123.456
-
-  // operators
+  //  (Operators)
   Plus,               // +
   Minus,              // -
   Asterisk,           // *
@@ -56,8 +70,13 @@ pub enum TokenType {
   GreaterThan,        // >
   LessThanOrEqual,    // <=
   GreaterThanOrEqual, // >=
-
-  // punctuation
+  AndOperator,        // AND (operador lógico)
+  OrOperator,         // OR (operador lógico)
+  NotOperator,        // NOT (operador lógico)
+  LikeOperator,       // LIKE
+  InOperator,         // IN
+  IsOperator,         // IS
+  //  (Punctuation)
   Comma,        // ,
   Semicolon,    // ;
   LeftParen,    // (
@@ -65,9 +84,15 @@ pub enum TokenType {
   LeftBracket,  // [
   RightBracket, // ]
   Dot,          // .
-  Comment,
+  Pipe,         // |> (operador de pipe)
+
+  //  (Comments)
+  Comment, // -- ou /* ... */
+
+  // (End of File)
   EOF, // end of file
 }
+
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Token {
   pub kind: TokenType,
@@ -154,6 +179,11 @@ impl Token {
       "OR" => Token::new(TokenType::Or, None, range),
       "true" => Token::new(TokenType::Boolean, Some("true".to_string()), range),
       "false" => Token::new(TokenType::Boolean, Some("false".to_string()), range),
+      "COUNT" => Token::new(TokenType::Count, None, range),
+      "SUM" => Token::new(TokenType::Sum, None, range),
+      "AVG" => Token::new(TokenType::Avg, None, range),
+      "MIN" => Token::new(TokenType::Min, None, range),
+      "MAX" => Token::new(TokenType::Max, None, range),
       _ => Token::new(TokenType::Identifier, Some(text), range),
     }
   }

@@ -1,13 +1,7 @@
-#![allow(dead_code)]
-
 use super::ast::*;
-use crate::diagnostics::maneger::Diagnostic;
 use crate::diagnostics::report::report_and_exit;
-use crate::lexer::Token;
-use crate::lexer::{Lexer, TokenType};
-use crate::utils::range::Range;
-
-type Result<T> = std::result::Result<T, Diagnostic>;
+use crate::lexer::{Lexer, Token, TokenType};
+use crate::utils::range::{range_from, Range};
 
 pub struct Parser<'a> {
   lexer: &'a mut Lexer<'a>,
@@ -18,342 +12,328 @@ impl<'a> Parser<'a> {
     Self { lexer }
   }
 
-  pub fn parse_program(&mut self) -> Result<Program> {
-    let mut statements = Vec::new();
+  pub fn parse(&mut self) -> Program {
+    self.parse_program()
+  }
+
+  fn parse_program(&mut self) -> Program {
+    let mut statements = vec![];
     while !self.is_end() {
-      let stmt = self.parse_statement();
-      match stmt {
-        Ok(stmt) => statements.push(stmt),
-        Err(err) => {
-          report_and_exit(&err.message, &err.range, &self.lexer.get_source());
-        }
-      }
-      if self.match_token_and_consume(TokenType::Pipe).is_some() {
-        continue;
-      }
-      if !self.is_end() {
-        self.consume_expect_token(TokenType::Semicolon);
-      }
+      let statement = self.parse_statement();
+      statements.push(statement);
+      self.match_token_and_consume(TokenType::Semicolon);
     }
-
-    Ok(Program::new(statements))
+    Program::new(statements)
   }
 
-  fn parse_statement(&mut self) -> Result<Statement> {
+  fn parse_statement(&mut self) -> Statement {
     self.skip_comments();
+    let mut statement = self.parse_primary_statement();
+
+    while self.match_token_and_consume(TokenType::Pipe).is_some() {
+      let next_statement = self.parse_primary_statement();
+      statement = Statement::Pipe(PipeStatement::new(statement, next_statement));
+    }
+
+    statement
+  }
+
+  fn parse_primary_statement(&mut self) -> Statement {
     let token = self.lexer.peek_token();
     match token.kind {
-      TokenType::Select => self.parse_select_statement(),
-      TokenType::From => self.parse_from_clause(),
-      TokenType::Join => self.parse_join_clause(),
-      TokenType::Where => self.parse_where_clause(),
-      TokenType::GroupBy => self.parse_group_by_clause(),
-      TokenType::Aggregate => self.parse_aggregate_clause(),
-      TokenType::OrderBy => self.parse_order_by_clause(),
-      TokenType::Limit => self.parse_limit_clause(),
-      _ => Err(self.report_unexpected_token(token)),
+      TokenType::Select => Statement::Select(self.parse_select_statement()),
+      TokenType::From => Statement::From(self.parse_from_clause()),
+      TokenType::Join => Statement::Join(self.parse_join_clause()),
+      TokenType::Where => Statement::Where(self.parse_where_clause()),
+      TokenType::Group => Statement::GroupBy(self.parse_group_by_clause()),
+      TokenType::Order => Statement::Order(self.parse_order_clause()),
+      TokenType::Limit => Statement::Limit(self.parse_limit_clause()),
+      TokenType::Aggregate => Statement::Aggregate(self.parse_aggregate_clause()),
+      _ => self.report_unexpected_token(token),
     }
   }
 
-  fn parse_select_statement(&mut self) -> Result<Statement> {
-    self.consume_expect_token(TokenType::Select);
-    let distinct = self.match_token_and_consume(TokenType::Distinct).is_some();
-    let mut columns = Vec::new();
-    loop {
-      columns.push(self.parse_column_expression(None)?);
-      if self.match_token_and_consume(TokenType::Comma).is_none() {
-        break;
-      }
-    }
-
-    Ok(Statement::Select(SelectStatement {
-      distinct,
-      columns,
-      range: Range::default(), // You'll need to implement proper range tracking
-    }))
-  }
-
-  fn parse_from_clause(&mut self) -> Result<Statement> {
-    self.consume_expect_token(TokenType::From);
-    let table = self.parse_identifier()?;
-
-    Ok(Statement::From(FromClause {
-      table,
-      range: Range::default(), // You'll need to implement proper range tracking
-    }))
-  }
-
-  fn parse_join_clause(&mut self) -> Result<Statement> {
-    let join_type = match self.lexer.peek_token().kind {
-      TokenType::Join => JoinType::Inner,
-      // TokenType::LeftJoin => JoinType::Left,
-      // TokenType::RightJoin => JoinType::Right,
-      // TokenType::FullJoin => JoinType::Full,
+  fn parse_aggregate_function(&mut self) -> AggregateFn {
+    let token = self.consume_token();
+    match token.kind {
+      TokenType::Count => AggregateFn::Count,
+      TokenType::Sum => AggregateFn::Sum,
+      TokenType::Avg => AggregateFn::Avg,
+      TokenType::Min => AggregateFn::Min,
+      TokenType::Max => AggregateFn::Max,
       _ => {
-        return {
-          let token = self.lexer.peek_token();
-          Err(self.report_unexpected_token(token))
-        }
-      }
-    };
-    self.consume_token(); // Consume the join token
-
-    let table = self.parse_identifier()?;
-    self.consume_expect_token(TokenType::On);
-    let on = self.parse_condition_expression()?;
-
-    Ok(Statement::Join(JoinClause {
-      join_type,
-      table,
-      on,
-      range: Range::default(), // You'll need to implement proper range tracking
-    }))
-  }
-
-  fn parse_where_clause(&mut self) -> Result<Statement> {
-    self.consume_expect_token(TokenType::Where);
-    let condition = self.parse_condition_expression()?;
-
-    Ok(Statement::Where(WhereClause {
-      condition,
-      range: Range::default(), // You'll need to implement proper range tracking
-    }))
-  }
-
-  fn parse_group_by_clause(&mut self) -> Result<Statement> {
-    self.consume_expect_token(TokenType::GroupBy);
-
-    let mut columns = Vec::new();
-    loop {
-      columns.push(self.parse_column_expression(None)?);
-      if self.match_token_and_consume(TokenType::Comma).is_none() {
-        break;
+        let message = format!("unexpected token '{}'", token.kind.to_string());
+        self.report_error(message, token);
       }
     }
-
-    Ok(Statement::GroupBy(GroupByClause {
-      columns,
-      range: Range::default(), // You'll need to implement proper range tracking
-    }))
   }
 
-  fn parse_aggregate_clause(&mut self) -> Result<Statement> {
-    self.consume_expect_token(TokenType::Aggregate);
-
-    let mut functions = Vec::new();
-    loop {
-      functions.push(self.parse_aggregate_function()?);
-      if self.match_token_and_consume(TokenType::Comma).is_none() {
-        break;
-      }
-    }
-
-    Ok(Statement::Aggregate(AggregateClause {
-      functions,
-      range: Range::default(), // You'll need to implement proper range tracking
-    }))
-  }
-
-  fn parse_aggregate_function(&mut self) -> Result<AggregateFunction> {
-    let function = match self.lexer.peek_token().kind {
-      TokenType::Count => AggregateFunctionType::Count,
-      TokenType::Sum => AggregateFunctionType::Sum,
-      TokenType::Avg => AggregateFunctionType::Avg,
-      TokenType::Min => AggregateFunctionType::Min,
-      TokenType::Max => AggregateFunctionType::Max,
-      _ => {
-        let token = self.lexer.peek_token();
-        return Err(self.report_unexpected_token(token));
-      }
-    };
-    self.consume_token(); // Consume the function name
-
+  fn parse_aggregate_clause(&mut self) -> AggregateClause {
+    let aggregate_range = self.consume_expect_token(TokenType::Aggregate).range;
+    let function = self.parse_aggregate_function();
     self.consume_expect_token(TokenType::LeftParen);
-    let argument = self.parse_expression()?;
+    let argument = self.parse_expression();
     self.consume_expect_token(TokenType::RightParen);
-
     let alias = if self.match_token_and_consume(TokenType::As).is_some() {
-      Some(self.parse_identifier()?)
+      Some(self.consume_expect_token(TokenType::Identifier))
     } else {
       None
     };
-
-    Ok(AggregateFunction {
-      function,
-      argument,
-      alias,
-      range: Range::default(), // You'll need to implement proper range tracking
-    })
+    let mut range = argument.get_range();
+    if let Some(alias) = &alias {
+      range = range_from(&range, &alias.range);
+    }
+    let range = range_from(&aggregate_range, &range);
+    AggregateClause::new(function, argument, alias, range)
   }
 
-  fn parse_order_by_clause(&mut self) -> Result<Statement> {
-    self.consume_expect_token(TokenType::OrderBy);
+  fn parse_select_statement(&mut self) -> SelectStatement {
+    let select_range = self.consume_expect_token(TokenType::Select).range;
+    let mut expressions = vec![];
+    let mut last_range = select_range.clone();
+    let is_distinct = self.match_token_and_consume(TokenType::Distinct).is_some();
+    while !self.match_token(&TokenType::From) && !self.is_end() {
+      let expression = self.parse_select_expression();
+      expressions.push(expression);
+      self.match_token_and_consume(TokenType::Comma);
+    }
+    if !expressions.is_empty() {
+      last_range = expressions.last().unwrap().get_range();
+    }
+    let range = range_from(&select_range, &last_range);
+    let mut select_statement = SelectStatement::new(is_distinct, expressions, range);
 
-    let mut columns = Vec::new();
-    loop {
-      let column = self.parse_column_expression(None)?;
-      let direction = if self.match_token_and_consume(TokenType::Asc).is_some() {
-        OrderDirection::Asc
-      } else if self.match_token_and_consume(TokenType::Desc).is_some() {
-        OrderDirection::Desc
-      } else {
-        OrderDirection::Asc // Default to ascending if not specified
-      };
+    if self.match_token(&TokenType::From) {
+      let from = self.parse_from_clause();
+      select_statement.with_from_clause(from);
+    }
+    select_statement
+  }
 
-      columns.push(OrderByColumn {
-        column,
-        direction,
-        range: Range::default(), // You'll need to implement proper range tracking
-      });
+  fn parse_select_expression(&mut self) -> SelectExpression {
+    let expression = self.parse_expression();
+    let alias = if self.match_token_and_consume(TokenType::As).is_some() {
+      Some(self.consume_expect_token(TokenType::Identifier))
+    } else {
+      None
+    };
+    let mut range = expression.get_range();
 
+    if let Some(alias) = &alias {
+      range = range_from(&range, &alias.range);
+    }
+    SelectExpression::new(expression, alias, range)
+  }
+
+  fn parse_from_clause(&mut self) -> FromClause {
+    let from_range = self.consume_expect_token(TokenType::From).range;
+    let table_name = self.consume_expect_token(TokenType::Identifier);
+    let range = range_from(&from_range, &table_name.range);
+    FromClause::new(table_name, range)
+  }
+
+  fn parse_join_clause(&mut self) -> JoinClause {
+    let join_range = self.consume_expect_token(TokenType::Join).range;
+    let table_name = self.consume_expect_token(TokenType::Identifier);
+
+    self.consume_expect_token(TokenType::On);
+
+    let left = self.parse_column_expression();
+    let operator = self.parse_operator();
+    let right = self.parse_column_expression();
+
+    // todo: is correct
+    let left_range = range_from(&join_range, &left.get_range());
+
+    let range = range_from(&left_range, &right.get_range());
+
+    let condition = ConditionExpression::new(left, operator, right);
+
+    JoinClause::new(table_name, condition, range)
+  }
+
+  fn parse_where_clause(&mut self) -> WhereClause {
+    let where_range = self.consume_expect_token(TokenType::Where).range;
+
+    let condition = self.parse_condition_expression();
+
+    let range = range_from(&where_range, &condition.get_range());
+    WhereClause::new(condition, range)
+  }
+
+  fn parse_group_by_clause(&mut self) -> GroupByClause {
+    let group_range = self.consume_expect_token(TokenType::Group).range;
+    self.consume_expect_token(TokenType::By);
+    let mut columns = vec![];
+    while !self.match_any_token(&[TokenType::Order, TokenType::Limit]) && !self.is_end() {
+      columns.push(self.parse_column_expression());
+      if self.match_token_and_consume(TokenType::Comma).is_none() {
+        break;
+      }
+    }
+    if !columns.is_empty() {
+      let last_range = columns.last().unwrap().get_range();
+      let range = range_from(&group_range, &last_range);
+      return GroupByClause::new(columns, range);
+    }
+    GroupByClause::new(columns, group_range)
+  }
+
+  fn parse_order_clause(&mut self) -> OrderClause {
+    let order_range = self.consume_expect_token(TokenType::Order).range;
+    self.consume_expect_token(TokenType::By);
+    let mut columns = vec![];
+
+    while !self.match_token(&TokenType::Limit) && !self.is_end() {
+      columns.push(self.parse_order_column());
       if self.match_token_and_consume(TokenType::Comma).is_none() {
         break;
       }
     }
 
-    Ok(Statement::OrderBy(OrderByClause {
-      columns,
-      range: Range::default(), // You'll need to implement proper range tracking
-    }))
+    if !columns.is_empty() {
+      let last_range = columns.last().unwrap().get_range();
+      let range = range_from(&order_range, &last_range);
+      return OrderClause::new(columns, range);
+    }
+    OrderClause::new(columns, self.current_range())
   }
 
-  fn parse_limit_clause(&mut self) -> Result<Statement> {
-    self.consume_expect_token(TokenType::Limit);
-    let count = self.parse_number_literal()?;
-
-    let offset = if self.match_token_and_consume(TokenType::Offset).is_some() {
-      Some(self.parse_number_literal()?)
+  fn parse_limit_clause(&mut self) -> LimitClause {
+    let limit_range = self.consume_expect_token(TokenType::Limit).range;
+    let count = self.parse_number_literal();
+    let offset = if self.match_token_and_consume(TokenType::Comma).is_some() {
+      Some(self.parse_number_literal())
     } else {
       None
     };
 
-    Ok(Statement::Limit(LimitClause {
-      count,
-      offset,
-      range: Range::default(), // You'll need to implement proper range tracking
-    }))
+    let mut range = range_from(&limit_range, &count.range);
+    if let Some(offset) = &offset {
+      range = range_from(&range, &offset.range);
+    }
+
+    LimitClause::new(count, offset, range)
   }
 
-  fn parse_column_expression(&mut self, table_: Option<Identifier>) -> Result<ColumnExpression> {
-    let name = if table_.is_none() { self.parse_identifier()? } else { table_.unwrap() };
-
-    let table = if self.lexer.peek_token().kind == TokenType::Dot {
-      self.consume_expect_token(TokenType::Dot);
-      let table = self.parse_identifier()?;
-      Some(table)
-    } else {
-      None
-    };
-    Ok(ColumnExpression {
-      table,
-      name,
-      range: Range::default(), // You'll need to implement proper range tracking
-    })
-  }
-
-  fn parse_condition_expression(&mut self) -> Result<ConditionExpression> {
-    let left = Box::new(self.parse_expression()?);
-    let operator = self.parse_operator()?;
-    let right = Box::new(self.parse_expression()?);
-
-    Ok(ConditionExpression {
-      left,
-      operator,
-      right,
-      range: Range::default(), // You'll need to implement proper range tracking
-    })
-  }
-
-  fn parse_expression(&mut self) -> Result<Expression> {
+  fn parse_expression(&mut self) -> Expression {
     let token = self.lexer.peek_token();
     match token.kind {
-      TokenType::Identifier => {
-        let identifier = self.parse_identifier()?;
-        if self.lexer.peek_token().kind == TokenType::LeftParen {
-          self.parse_function_call(Some(identifier)).map(Expression::FunctionCall)
-        } else {
-          self.parse_column_expression(Some(identifier)).map(Expression::Column)
-        }
+      TokenType::Identifier => self.parse_column_or_function_call(),
+      TokenType::Number => {
+        let literal = self.parse_number_literal();
+        Expression::create_literal(Literal::Number(literal))
       }
-      TokenType::LeftParen => self.parse_grouo_expression(),
-      TokenType::String => self.parse_string_literal().map(Literal::String).map(Expression::Literal),
-      TokenType::Number => self.parse_number_literal().map(Literal::Number).map(Expression::Literal),
-      TokenType::Boolean => self.parse_boolean_literal().map(Literal::Boolean).map(Expression::Literal),
-      _ => Err(self.report_unexpected_token(token)),
+      TokenType::String => {
+        let literal = self.parse_string_literal();
+        Expression::create_literal(Literal::String(literal))
+      }
+      TokenType::LeftParen => self.parse_subquery_expression(),
+      _ => self.report_unexpected_token(token),
     }
   }
 
-  fn parse_grouo_expression(&mut self) -> Result<Expression> {
-    // (...)
-    self.consume_expect_token(TokenType::LeftParen);
-    let expression = self.parse_expression()?;
-    self.consume_expect_token(TokenType::RightParen);
-    Ok(expression)
-  }
+  fn parse_column_or_function_call(&mut self) -> Expression {
+    let identifier = self.consume_expect_token(TokenType::Identifier);
 
-  fn parse_function_call(&mut self, name: Option<Identifier>) -> Result<FunctionCall> {
-    self.consume_expect_token(TokenType::LeftParen);
-    let name = if name.is_none() { self.parse_identifier()? } else { name.unwrap() };
-
-    let mut arguments = Vec::new();
-    if !self.match_token(&TokenType::RightParen) {
-      loop {
-        arguments.push(self.parse_expression()?);
-        if self.match_token_and_consume(TokenType::Comma).is_none() {
-          break;
-        }
+    if self.match_token_and_consume(TokenType::LeftParen).is_some() {
+      let mut arguments = vec![];
+      while !self.match_token(&TokenType::RightParen) && !self.is_end() {
+        let argument = self.parse_expression();
+        arguments.push(argument);
+        self.match_token_and_consume(TokenType::Comma);
       }
+      self.consume_expect_token(TokenType::RightParen);
+      Expression::create_function_call(identifier, arguments, self.current_range())
+    } else {
+      let mut column = None;
+      if self.match_token_and_consume(TokenType::Dot).is_some() {
+        column = Some(self.consume_expect_token(TokenType::Identifier));
+      }
+      Expression::create_column(column, identifier)
     }
-
-    self.consume_expect_token(TokenType::RightParen);
-
-    Ok(FunctionCall {
-      name,
-      arguments,
-      range: Range::default(), // You'll need to implement proper range tracking
-    })
   }
 
-  fn parse_identifier(&mut self) -> Result<Identifier> {
-    let token = self.consume_expect_token(TokenType::Identifier);
-    Ok(Identifier { value: token.lexeme.unwrap(), range: token.range })
+  fn parse_subquery_expression(&mut self) -> Expression {
+    let left_paren_range = self.consume_expect_token(TokenType::LeftParen).range;
+    let statement = self.parse_statement();
+    // if self.match_token(&TokenType::Select) {
+    //   let select = self.parse_select_statement();
+    //   let right_paren_range = self.consume_expect_token(TokenType::RightParen).range;
+    //   let range = range_from(&left_paren_range, &right_paren_range);
+    //   Expression::create_subquery(select, range)
+    // } else {
+    //   let expression = self.parse_expression();
+    //   let right_paren_range = self.consume_expect_token(TokenType::RightParen).range;
+    //   let range = range_from(&left_paren_range, &right_paren_range);
+    //   expression
+    // }
+    let right_paren_range = self.consume_expect_token(TokenType::RightParen).range;
+    let range = range_from(&left_paren_range, &right_paren_range);
+    Expression::create_subquery(statement, range)
   }
 
-  fn parse_string_literal(&mut self) -> Result<StringLiteral> {
-    let token = self.consume_expect_token(TokenType::String);
-    Ok(StringLiteral {
-      value: token.lexeme.unwrap().to_string(), // Remove quotes
-      range: token.range,
-    })
+  fn parse_column_expression(&mut self) -> Expression {
+    let column_name = self.consume_expect_token(TokenType::Identifier);
+    let mut table_name = None;
+    if self.match_token_and_consume(TokenType::Dot).is_some() {
+      table_name = Some(self.consume_expect_token(TokenType::Identifier));
+    }
+    Expression::create_column(table_name, column_name)
   }
 
-  fn parse_number_literal(&mut self) -> Result<NumberLiteral> {
-    let token = self.consume_expect_token(TokenType::Number);
-    Ok(NumberLiteral { value: token.lexeme.unwrap(), range: token.range })
+  fn parse_condition_expression(&mut self) -> Expression {
+    let left = self.parse_expression();
+    let operator = self.parse_operator();
+    let right = self.parse_expression();
+    Expression::create_condition(left, operator, right)
   }
 
-  fn parse_boolean_literal(&mut self) -> Result<BooleanLiteral> {
-    let token = self.consume_token();
-    Ok(BooleanLiteral { value: token.lexeme.unwrap() == "true", range: token.range })
-  }
-
-  fn parse_operator(&mut self) -> Result<Operator> {
+  fn parse_operator(&mut self) -> Operator {
     let token = self.consume_token();
     match token.kind {
-      TokenType::Equal => Ok(Operator::Equal),
-      TokenType::NotEqual => Ok(Operator::NotEqual),
-      TokenType::LessThan => Ok(Operator::LessThan),
-      TokenType::GreaterThan => Ok(Operator::GreaterThan),
-      TokenType::LessThanOrEqual => Ok(Operator::LessThanOrEqual),
-      TokenType::GreaterThanOrEqual => Ok(Operator::GreaterThanOrEqual),
-      TokenType::And => Ok(Operator::And),
-      TokenType::Or => Ok(Operator::Or),
-      _ => Err(self.report_unexpected_token(token)),
+      TokenType::Equal => Operator::Equal,
+      TokenType::NotEqual => Operator::NotEqual,
+      TokenType::LessThan => Operator::LessThan,
+      TokenType::GreaterThan => Operator::GreaterThan,
+      TokenType::LessThanOrEqual => Operator::LessThanOrEqual,
+      TokenType::GreaterThanOrEqual => Operator::GreaterThanOrEqual,
+      TokenType::And => Operator::And,
+      TokenType::Or => Operator::Or,
+      _ => self.report_unexpected_token(token),
     }
+  }
+
+  fn parse_order_column(&mut self) -> OrderColumn {
+    let column = self.parse_column_expression();
+    let direction = if self.match_token_and_consume(TokenType::Desc).is_some() {
+      OrderDirection::Desc
+    } else {
+      OrderDirection::Asc
+    };
+    OrderColumn::new(column, direction)
+  }
+
+  fn parse_number_literal(&mut self) -> NumberLiteral {
+    let token = self.consume_expect_token(TokenType::Number);
+    if token.lexeme.is_none() {
+      self.report_token_with_message("expected number literal".to_string(), token);
+    }
+    let value = token.lexeme.unwrap();
+    NumberLiteral::new(value, token.range)
+  }
+
+  fn parse_string_literal(&mut self) -> StringLiteral {
+    let token = self.consume_expect_token(TokenType::String);
+    if token.lexeme.is_none() {
+      self.report_token_with_message("expected string literal".to_string(), token);
+    }
+    let value = token.lexeme.unwrap();
+    StringLiteral::new(value, token.range)
   }
 
   fn consume_expect_token(&mut self, kind: TokenType) -> Token {
-    let token = self.lexer.next_token();
+    let token = self.consume_token();
     if token.kind != kind {
       let message = format!("expected '{}' but found '{}'", kind.to_string(), token.kind.to_string());
       self.report_error(message, token);
@@ -369,13 +349,9 @@ impl<'a> Parser<'a> {
     self.lexer.peek_token().kind == *kind
   }
 
-  fn match_any_token(&mut self, kinds: &[TokenType]) -> Option<Token> {
+  fn match_any_token(&mut self, kinds: &[TokenType]) -> bool {
     let token = self.lexer.peek_token();
-    if kinds.contains(&token.kind) {
-      Some(self.consume_token())
-    } else {
-      None
-    }
+    kinds.contains(&token.kind)
   }
 
   fn match_token_and_consume(&mut self, kind: TokenType) -> Option<Token> {
@@ -384,14 +360,6 @@ impl<'a> Parser<'a> {
     } else {
       None
     }
-  }
-
-  fn contains_token(&mut self, kinds: &[TokenType]) -> bool {
-    if self.is_end() {
-      return false;
-    }
-    let next_token = self.lexer.peek_token();
-    kinds.iter().any(|kind| &next_token.kind == kind)
   }
 
   fn is_end(&mut self) -> bool {
@@ -404,18 +372,20 @@ impl<'a> Parser<'a> {
     }
   }
 
-  fn report_unexpected_token(&self, token: Token) -> Diagnostic {
+  fn current_range(&self) -> Range {
+    Range::default()
+  }
+
+  fn report_unexpected_token(&self, token: Token) -> ! {
     let message = format!("unexpected token '{}'", token.kind.to_string());
-    return Diagnostic { message, range: token.range };
-    // self.report_error(message, token)
+    self.report_error(message, token)
+  }
+
+  fn report_token_with_message(&self, message: String, token: Token) -> ! {
+    self.report_error(message, token)
   }
 
   fn report_error(&self, message: String, token: Token) -> ! {
-    let diagnostic = Diagnostic { message, range: token.range };
-    report_and_exit(&diagnostic.message, &diagnostic.range, &self.lexer.get_source());
-  }
-
-  fn report_diagnostic(&self, diagnostic: Diagnostic) -> ! {
-    report_and_exit(&diagnostic.message, &diagnostic.range, &self.lexer.get_source());
+    report_and_exit(&message, &token.range, &self.lexer.get_source())
   }
 }

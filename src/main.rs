@@ -36,7 +36,7 @@ fn run_compile(path_name: &str) {
   let source = Source::new(path_name, &raw);
   let mut lexer = Lexer::new(&source);
   let mut parser = Parser::new(&mut lexer);
-  let program = parser.parse_program();
+  let program = parser.parse();
   println!("{:#?}", program);
 }
 fn run_check(path_name: &str) {
