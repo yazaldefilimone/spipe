@@ -79,10 +79,12 @@ impl<'a> Parser<'a> {
     } else {
       None
     };
+
     let mut range = argument.get_range();
     if let Some(alias) = &alias {
       range = range_from(&range, &alias.range);
     }
+
     let range = range_from(&aggregate_range, &range);
     AggregateClause::new(function, argument, alias, range)
   }
@@ -97,6 +99,7 @@ impl<'a> Parser<'a> {
       expressions.push(expression);
       self.match_token_and_consume(TokenType::Comma);
     }
+
     if !expressions.is_empty() {
       last_range = expressions.last().unwrap().get_range();
     }
