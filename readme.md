@@ -1,6 +1,7 @@
-This tool is designed to make writing complex SQL queries easier and more readable by using a pipe syntax. It helps developers build queries step-by-step and automatically generates native SQL.
+<samp>
 
-It includes a checker to help improve readability, provide performance optimization suggestions, and has built-in diagnostics that catch common errors and offer suggestions for improvements. This makes query writing and maintenance much easier compared to traditional SQL.
+This compiler simplifies complex SQL with pipe syntax, enabling step-by-step query building that auto-generates native SQL. It includes a checker for readability, performance tips, and diagnostics to catch errors, making SQL writing and maintenance effortless.
+
 
 Example:
 
