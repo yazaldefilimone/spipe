@@ -2,6 +2,7 @@ use super::ast::*;
 use crate::diagnostics::report::report_and_exit;
 use crate::lexer::{Lexer, Token, TokenType};
 use crate::utils::range::{range_from, Range};
+use crate::utils::source::Source;
 
 pub struct Parser<'a> {
   lexer: &'a mut Lexer<'a>,
@@ -61,6 +62,23 @@ impl<'a> Parser<'a> {
       TokenType::Avg => AggregateFn::Avg,
       TokenType::Min => AggregateFn::Min,
       TokenType::Max => AggregateFn::Max,
+      TokenType::StdDev => AggregateFn::StdDev,
+      TokenType::StdDevPop => AggregateFn::StdDevPop,
+      TokenType::StdDevSamp => AggregateFn::StdDevSamp,
+      TokenType::VarPop => AggregateFn::VarPop,
+      TokenType::VarSamp => AggregateFn::VarSamp,
+      TokenType::Variance => AggregateFn::Variance,
+      TokenType::First => AggregateFn::First,
+      TokenType::Last => AggregateFn::Last,
+      TokenType::StringAgg => AggregateFn::StringAgg,
+      TokenType::Median => AggregateFn::Median,
+      TokenType::Mode => AggregateFn::Mode,
+      TokenType::ArrayAgg => AggregateFn::ArrayAgg,
+      TokenType::JsonAgg => AggregateFn::JsonAgg,
+      TokenType::BitAnd => AggregateFn::BitAnd,
+      TokenType::BitOr => AggregateFn::BitOr,
+      TokenType::BoolAnd => AggregateFn::BoolAnd,
+      TokenType::BoolOr => AggregateFn::BoolOr,
       _ => {
         let message = format!("unexpected token '{}'", token.kind.to_string());
         self.report_error(message, token);
@@ -390,5 +408,9 @@ impl<'a> Parser<'a> {
 
   fn report_error(&self, message: String, token: Token) -> ! {
     report_and_exit(&message, &token.range, &self.lexer.get_source())
+  }
+
+  pub fn get_source(&self) -> &Source<'a> {
+    self.lexer.get_source()
   }
 }

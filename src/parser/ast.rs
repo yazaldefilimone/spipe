@@ -118,7 +118,6 @@ impl AggregateClause {
   }
 }
 
-// Função de Agregação (AggregateFunction)
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum AggregateFn {
   Count,
@@ -126,6 +125,25 @@ pub enum AggregateFn {
   Avg,
   Min,
   Max,
+  StdDev,        // Standard Deviation
+  StdDevPop,     // Population Standard Deviation
+  StdDevSamp,    // Sample Standard Deviation
+  VarPop,        // Population Variance
+  VarSamp,       // Sample Variance
+  Variance,      // Variance
+  First,         // First Value in a Group
+  Last,          // Last Value in a Group
+  GroupConcat,   // Concatenates Group Values (MySQL)
+  StringAgg,     // Concatenates Strings with a Separator (PostgreSQL)
+  Median,        // Median Value (varies by SQL dialect)
+  Mode,          // Most Frequent Value
+  ArrayAgg,      // Aggregates values into an array
+  JsonAgg,       // Aggregates values into a JSON array (PostgreSQL)
+  JsonObjectAgg, // Aggregates key-value pairs into a JSON object (PostgreSQL)
+  BitAnd,        // Bitwise AND of all values (PostgreSQL)
+  BitOr,         // Bitwise OR of all values (PostgreSQL)
+  BoolAnd,       // Logical AND of all boolean values (PostgreSQL)
+  BoolOr,        // Logical OR of all boolean values (PostgreSQL)
 }
 
 // Cláusula SELECT (SelectStatement)
@@ -203,7 +221,7 @@ impl JoinClause {
 
   pub fn get_range(&self) -> Range {
     let condition = self.on.get_range();
-    range_from(&condition, &self.table.range)
+    range_from(&self.table.range, &condition)
   }
 }
 
@@ -369,8 +387,8 @@ impl ColumnExpression {
   }
 
   pub fn get_range(&self) -> Range {
-    let right = self.table.clone().and_then(|table| Some(table.range)).unwrap_or(self.range.clone());
-    range_from(&right, &self.column.range)
+    let right = self.table.clone().and_then(|table| Some(table.range)).unwrap_or(self.column.range.clone());
+    range_from(&self.column.range, &right)
   }
 }
 

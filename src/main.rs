@@ -1,9 +1,12 @@
+use checker::Checker;
 use lexer::Lexer;
 use parser::Parser;
-use utils::Source;
+use utils::source::Source;
 
+mod checker;
 mod cli;
 mod diagnostics;
+mod emiter;
 mod format;
 mod lexer;
 mod parser;
@@ -37,7 +40,17 @@ fn run_compile(path_name: &str) {
   let mut lexer = Lexer::new(&source);
   let mut parser = Parser::new(&mut lexer);
   let program = parser.parse();
-  println!("{:#?}", program);
+  // println!("{:#?}", program);
+  let mut checker = Checker::new();
+  checker.check(&program);
+  checker.report(&source);
+  if checker.contains_error() {
+    std::process::exit(1);
+  }
+  let native = program.to_sql();
+  println!("{}", native);
+
+  // println!("{:#?}", program);
 }
 fn run_check(path_name: &str) {
   println!("{:?}", path_name);

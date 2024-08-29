@@ -1,15 +1,5 @@
 pub mod range;
-
-pub struct Source<'a> {
-  pub raw: &'a str,
-  pub path: &'a str,
-}
-
-impl<'a> Source<'a> {
-  pub fn new(path: &'a str, raw: &'a str) -> Source<'a> {
-    Source { path, raw }
-  }
-}
+pub mod source;
 
 pub fn match_number(character: char) -> bool {
   "1234567890.".contains(character)
@@ -27,4 +17,8 @@ pub fn highlight_text_with_cyan(text: &str) -> String {
 
 pub fn highlight_text_with_white(text: &str) -> String {
   format!("\x1b[97m{}\x1b[0m", text)
+}
+
+pub fn highlight_text_with_green(text: &str) -> String {
+  format!("\x1b[32m{}\x1b[0m", text)
 }

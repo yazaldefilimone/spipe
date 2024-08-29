@@ -46,12 +46,30 @@ pub enum TokenType {
   Aggregate, // AGGREGATE
 
   // (Aggregation Functions)
-  Count, // COUNT
-  Sum,   // SUM
-  Avg,   // AVG
-  Min,   // MIN
-  Max,   // MAX
-
+  Count,         // COUNT
+  Sum,           // SUM
+  Avg,           // AVG
+  Min,           // MIN
+  Max,           // MAX
+  StdDev,        // Standard Deviation
+  StdDevPop,     // Population Standard Deviation
+  StdDevSamp,    // Sample Standard Deviation
+  VarPop,        // Population Variance
+  VarSamp,       // Sample Variance
+  Variance,      // Variance
+  First,         // First Value in a Group
+  Last,          // Last Value in a Group
+  GroupConcat,   // Concatenates Group Values (MySQL)
+  StringAgg,     // Concatenates Strings with a Separator (PostgreSQL)
+  Median,        // Median Value (varies by SQL dialect)
+  Mode,          // Most Frequent Value
+  ArrayAgg,      // Aggregates values into an array
+  JsonAgg,       // Aggregates values into a JSON array (PostgreSQL)
+  JsonObjectAgg, // Aggregates key-value pairs into a JSON object (PostgreSQL)
+  BitAnd,        // Bitwise AND of all values (PostgreSQL)
+  BitOr,         // Bitwise OR of all values (PostgreSQL)
+  BoolAnd,       // Logical AND of all boolean values (PostgreSQL)
+  BoolOr,        // Log
   //  (Literals)
   Identifier, // name of a column, table, or alias
   String,     // "string"
@@ -181,9 +199,28 @@ impl Token {
       "false" => Token::new(TokenType::Boolean, Some("false".to_string()), range),
       "COUNT" => Token::new(TokenType::Count, None, range),
       "SUM" => Token::new(TokenType::Sum, None, range),
-      "AVG" => Token::new(TokenType::Avg, None, range),
-      "MIN" => Token::new(TokenType::Min, None, range),
-      "MAX" => Token::new(TokenType::Max, None, range),
+      // "AVG" => Token::new(TokenType::Avg, None, range),
+      // "MIN" => Token::new(TokenType::Min, None, range),
+      // "MAX" => Token::new(TokenType::Max, None, range),
+      // "STDDEV" => Token::new(TokenType::StdDev, None, range),
+      // "STDDEV_POP" => Token::new(TokenType::StdDevPop, None, range),
+      // "STDDEV_SAMP" => Token::new(TokenType::StdDevSamp, None, range),
+      // "VAR_POP" => Token::new(TokenType::VarPop, None, range),
+      // "VAR_SAMP" => Token::new(TokenType::VarSamp, None, range),
+      // "VARIANCE" => Token::new(TokenType::Variance, None, range),
+      // "FIRST" => Token::new(TokenType::First, None, range),
+      // "LAST" => Token::new(TokenType::Last, None, range),
+      // "GROUP_CONCAT" => Token::new(TokenType::GroupConcat, None, range),
+      // "STRING_AGG" => Token::new(TokenType::StringAgg, None, range),
+      // "MEDIAN" => Token::new(TokenType::Median, None, range),
+      // "MODE" => Token::new(TokenType::Mode, None, range),
+      // "ARRAY_AGG" => Token::new(TokenType::ArrayAgg, None, range),
+      // "JSON_AGG" => Token::new(TokenType::JsonAgg, None, range),
+      // "JSON_OBJECT_AGG" => Token::new(TokenType::JsonObjectAgg, None, range),
+      // "BIT_AND" => Token::new(TokenType::BitAnd, None, range),
+      // "BIT_OR" => Token::new(TokenType::BitOr, None, range),
+      // "BOOL_AND" => Token::new(TokenType::BoolAnd, None, range),
+      // "BOOL_OR" => Token::new(TokenType::BoolOr, None, range),
       _ => Token::new(TokenType::Identifier, Some(text), range),
     }
   }

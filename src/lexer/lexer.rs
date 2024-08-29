@@ -1,9 +1,8 @@
 #![allow(dead_code)]
 
-use crate::{
-  diagnostics::report::report_and_exit,
-  utils::{match_number, range::Range, Source},
-};
+use crate::utils::range::Range;
+use crate::utils::source::Source;
+use crate::{diagnostics::report::report_and_exit, utils::match_number};
 
 use super::token::{Token, TokenType};
 
@@ -58,8 +57,8 @@ impl<'a> Lexer<'a> {
       ',' => self.read_simple_token(TokenType::Comma),
       ';' => self.read_simple_token(TokenType::Semicolon),
       '.' => self.read_simple_token(TokenType::Dot),
-      '<' => self.read_check_ahead("<=", TokenType::LessThanOrEqual, TokenType::LessThan),
-      '>' => self.read_check_ahead(">=", TokenType::GreaterThanOrEqual, TokenType::GreaterThan),
+      '<' => self.read_check_ahead("<=", TokenType::LessThan, TokenType::LessThanOrEqual),
+      '>' => self.read_check_ahead(">=", TokenType::GreaterThan, TokenType::GreaterThanOrEqual),
       '0'..='9' => self.read_number(),
       '"' => self.read_string_with_double_quote(),
       '\'' => self.read_string_with_single_quote(),

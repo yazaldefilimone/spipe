@@ -1,11 +1,14 @@
 use crate::utils::{
-  highlight_text_with_cyan, highlight_text_with_red, highlight_text_with_white, highlight_text_with_yellow,
-  range::Range, Source,
+  highlight_text_with_cyan, highlight_text_with_green, highlight_text_with_red, highlight_text_with_white,
+  highlight_text_with_yellow,
 };
+
+use crate::utils::range::Range;
+use crate::utils::source::Source;
 
 use code_highlighter::{highlight_error, highlight_warning};
 
-pub fn report_error(message: &str, range: &Range, source: &Source, warning: bool) {
+pub fn report_error(message: &str, hint: &Option<String>, range: &Range, source: &Source, warning: bool) {
   println!("");
   if !warning {
     println!("{} {}", highlight_text_with_red("ERROR >>>"), highlight_text_with_white(message));
@@ -24,11 +27,17 @@ pub fn report_error(message: &str, range: &Range, source: &Source, warning: bool
     let code_highliter = format!("{}", highlight_error(range.start, range.end, source.raw));
     println!("{}", code_highliter);
   }
+
+  if let Some(hint) = hint {
+    println!();
+
+    println!("{} {}", highlight_text_with_green("HELP:"), highlight_text_with_white(hint));
+  }
   println!();
 }
 
 pub fn report_and_exit(message: &str, range: &Range, source: &Source) -> ! {
-  report_error(message, range, source, false);
+  report_error(message, &None, range, source, false);
   std::process::exit(1);
 }
 
