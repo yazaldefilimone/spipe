@@ -48,4 +48,4 @@ LIMIT 5;
 
 checker diagnostics:
 
-[exemple](./example.png)
+![example](./example.png)
