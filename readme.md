@@ -48,8 +48,14 @@ LIMIT 5;
 ```
 
 
-[paper](https://research.google/pubs/sql-has-problems-we-can-fix-them-pipe-syntax-in-sql/)
 
-checker diagnostics:
+checker diagnostics exemple:
 
 ![example](./example.png)
+
+
+
+----
+
+[paper](https://research.google/pubs/sql-has-problems-we-can-fix-them-pipe-syntax-in-sql/)
+
